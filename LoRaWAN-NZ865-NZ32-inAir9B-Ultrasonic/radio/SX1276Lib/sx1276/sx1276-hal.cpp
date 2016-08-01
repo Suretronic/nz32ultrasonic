@@ -165,9 +165,24 @@ void SX1276MB1xAS::IoIrqInit( DioIrqHandler *irqHandlers )
    // dio4.rise( this, static_cast< TriggerMB1xAS > ( irqHandlers[4] ) );
 }
 
+void SX1276MB1xAS::IoReInit( void )
+{
+    DigitalOut nss(PC_8);
+    SPI spi(PB_5,PB_4,PB_3); //mosi, miso, sclk
+    IoInit();
+}
+
 void SX1276MB1xAS::IoDeInit( void )
 {
     //nothing
+    DigitalIn nss(PC_8);
+    nss.mode(PullDown);
+    DigitalIn mosi(PB_5);
+    mosi.mode(PullDown);
+    DigitalIn miso(PB_4);
+    miso.mode(PullDown);
+    DigitalIn sclk(PB_3);
+    sclk.mode(PullDown);
 }
 
 uint8_t SX1276MB1xAS::GetPaSelect( uint32_t channel )

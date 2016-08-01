@@ -11,12 +11,13 @@
     sampleBufIndex = 0;
     distanceAvailable = false;    
     state = READ_HEADER;
+    temperature = 99; // Initialise to indicate error condition
 }
 
 /**
 *   Get error corrected distance and temperature
 */
-uint16_t UltraSonic::getDistance(float *temp) {
+uint16_t UltraSonic::getDistance(int16_t *temp) {
     
     int i,j;
     for (i = 0; i < sampleBufSize; i++) {
@@ -52,6 +53,16 @@ void UltraSonic::triggerSample(void) {
     wait_us(120); // low for min of 100us
     _trigger=1; // back to standby mode  
 } 
+
+  void UltraSonic::pinsOff(void) {
+         DigitalIn _trigger(PA_1);
+         _trigger.mode(PullUp); // ensure sensor remains in standby mode
+         _receive.mode(PullDown);
+    };
+
+  void UltraSonic::pinsOn(void) {
+         DigitalOut _trigger(PA_1, 1);
+    };
 
 /** Interupt Routine to read in data from serial port
 *   Identifies a new serial data frame from sensor by frame header
@@ -90,7 +101,13 @@ void UltraSonic::RxInterrupt() {
                     sampleBufIndex = 0; // reset to beginning
                     distanceAvailable = true; // Samples buffer is full so distance can be estimated
                     // Get the temperature from last sample - as temperature reading is relatively consistent
-                    temperature = (float)(framebuf[2]<<8 | framebuf[3]) / 10.0; // Temperature in centigrade
+                    temperature = framebuf[2]<<8 | framebuf[3]; // Temperature in 1/10 degree centigrade
+                    if (framebuf[2] && 0x80) {  // hightest bit set for negative temperature
+                        temperature = -((framebuf[2] & 0x7F)<<8 | framebuf[3]); // Clear negative bit and set temperature negative
+                    }
+                    else {
+                        temperature = framebuf[2]<<8 | framebuf[3]; // Temperature positive
+                    } 
                 }
             } 
 

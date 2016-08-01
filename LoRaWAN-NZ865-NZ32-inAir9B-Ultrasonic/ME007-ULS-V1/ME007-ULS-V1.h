@@ -27,7 +27,7 @@ protected:
       uint8_t votes;  // votes per distance value
     }; samplebuf SampleBuf[sampleBufSize];  // buffers a set of distance reading samples
     
-    float temperature;
+    int16_t temperature;
     
      enum states {READ_HEADER, READ_DATA} state; /** Data frame read states   */
      
@@ -47,12 +47,22 @@ public:
     *   @return distance in centimeters
     *   @param temp - is centigrade temperature
     */
-    uint16_t getDistance(float *temp);
+    uint16_t getDistance(int16_t *temp);
     
     /**
     * Triggers a sample reading
     */
     void triggerSample(void);
+
+    /**
+    * Set pins to off
+    */
+    void pinsOff(void);
+
+        /**
+    * Set pins to on
+    */
+    void pinsOn(void);
     
  
  private:

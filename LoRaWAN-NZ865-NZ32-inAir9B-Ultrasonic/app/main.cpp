@@ -136,8 +136,7 @@ enum sensorstates {INIT=0, TRIGGERED, SENDING, SENT, FAULT};
 */
 
 sensorstates SensorState = INIT;
-static void txSensor(void);
-static void txSensorError(void);
+static void txSensor(bool mode);
 
 /************************************************************************/
 
@@ -166,23 +165,6 @@ static enum eDevicState
 }DeviceState;
 
 /*!
- * LoRaWAN compliance tests support data
- */
-struct ComplianceTest_s
-{
-    bool Running;
-    uint8_t State;
-    bool IsTxConfirmed;
-    uint8_t AppPort;
-    uint8_t AppDataSize;
-    uint8_t *AppDataBuffer;
-    uint16_t DownLinkCounter;
-    bool LinkCheck;
-    uint8_t DemodMargin;
-    uint8_t NbGateways;
-}ComplianceTest;
-
-/*!
  * \brief   Prepares the payload of the frame
  */
 static void PrepareTxFrame( uint8_t port )
@@ -198,13 +180,13 @@ static void PrepareTxFrame( uint8_t port )
               else
                      pc.printf("false\r\n");
             if (SensorState == FAULT) {
-                txSensorError();
+                txSensor(1); // 1 indicates error mode
                 SensorState = INIT; // Try Again
                 break;
             }
             
             if (/*(SensorState == SENDING) && */(sensor.distanceAvailable)) { /* Ultrasonic reading is ready to send */
-                txSensor(); // Prepare sensor data
+                txSensor(0); // Prepare sensor data - 0 indicates normal mode
                 SensorState = SENT;
             }
             else {
@@ -219,31 +201,6 @@ static void PrepareTxFrame( uint8_t port )
             AppDataSize = 7;
         }
         break;
-    case 224:
-        if( ComplianceTest.LinkCheck == true )
-        {
-            ComplianceTest.LinkCheck = false;
-            AppDataSize = 3;
-            AppData[0] = 5;
-            AppData[1] = ComplianceTest.DemodMargin;
-            AppData[2] = ComplianceTest.NbGateways;
-            ComplianceTest.State = 1;
-        }
-        else
-        {
-            switch( ComplianceTest.State )
-            {
-            case 4:
-                ComplianceTest.State = 1;
-                break;
-            case 1:
-                AppDataSize = 2;
-                AppData[0] = ComplianceTest.DownLinkCounter >> 8;
-                AppData[1] = ComplianceTest.DownLinkCounter;
-                break;
-            }
-        }
-        break;
     default:
         break;
     }
@@ -252,7 +209,7 @@ static void PrepareTxFrame( uint8_t port )
 /*!
  * \brief   Prepares the payload of the frame
  *
- * \retval  [0: frame could be send, 1: error]
+ * \retval  [0: frame could be sent, 1: error]
  */
 static bool SendFrame( void )
 {
@@ -304,9 +261,9 @@ static bool SendFrame( void )
       pc.printf("SendFrame  LoRaMacMcpsRequest Status = %d\r\n", LoRaMacMcpsRequest( &mcpsReq ) );
     if( LoRaMacMcpsRequest( &mcpsReq ) == LORAMAC_STATUS_OK ) 
     {
-        return false; // NextTx is set to this, so don't resend
+        return false; // NextTx is set to this, meaning don't resend
     }
-    return true;  // NextTx is set to this, so will resend if true
+    return true;  // NextTx is set to this, so will resend
 }
 
 /*!
@@ -437,19 +394,6 @@ static void McpsIndication( McpsIndication_t *mcpsIndication )
         default:
             break;
     }
-    // Check Multicast
-    // Check Port
-    // Check Datarate
-    // Check FramePending
-    // Check Buffer
-    // Check BufferSize
-    // Check Rssi
-    // Check Snr
-    // Check RxSlot
-    if( ComplianceTest.Running == true )
-    {
-        ComplianceTest.DownLinkCounter++;
-    }
     if( mcpsIndication->RxData == true )
     {
         switch( mcpsIndication->Port )
@@ -479,96 +423,10 @@ static void McpsIndication( McpsIndication_t *mcpsIndication )
                     // std::string msg(mcpsIndication->Buffer, mcpsIndication->Buffer+mcpsIndication->BufferSize); // convert uint8_t array to string
             }
             break;
-        case 224:
-            if( ComplianceTest.Running == false )
-            {
-                // Check compliance test enable command (i)
-                if( ( mcpsIndication->BufferSize == 4 ) &&
-                    ( mcpsIndication->Buffer[0] == 0x01 ) &&
-                    ( mcpsIndication->Buffer[1] == 0x01 ) &&
-                    ( mcpsIndication->Buffer[2] == 0x01 ) &&
-                    ( mcpsIndication->Buffer[3] == 0x01 ) )
-                {
-                    IsTxConfirmed = false;
-                    AppPort = 224;
-                    AppDataSize = 2;
-                    ComplianceTest.DownLinkCounter = 0;
-                    ComplianceTest.LinkCheck = false;
-                    ComplianceTest.DemodMargin = 0;
-                    ComplianceTest.NbGateways = 0;
-                    ComplianceTest.Running = true;
-                    ComplianceTest.State = 1;
-                    
-                    MibRequestConfirm_t mibReq;
-                    mibReq.Type = MIB_ADR;
-                    mibReq.Param.AdrEnable = true;
-                    LoRaMacMibSetRequestConfirm( &mibReq );
-                    //GpsStop( );
+            default:
+                break;
                 }
-            }
-            else
-            {
-                ComplianceTest.State = mcpsIndication->Buffer[0];
-                switch( ComplianceTest.State )
-                {
-                case 0: // Check compliance test disable command (ii)
-                    IsTxConfirmed = LORAWAN_CONFIRMED_MSG_ON;
-                    AppPort = LORAWAN_APP_PORT;
-                    AppDataSize = LORAWAN_APP_DATA_SIZE;
-                    ComplianceTest.DownLinkCounter = 0;
-                    ComplianceTest.Running = false;
-                    
-                    MibRequestConfirm_t mibReq;
-                    mibReq.Type = MIB_ADR;
-                    mibReq.Param.AdrEnable = LORAWAN_ADR_ON;
-                    LoRaMacMibSetRequestConfirm( &mibReq );
-                    //GpsStart( );
-                    break;
-                case 1: // (iii, iv)
-                    AppDataSize = 2;
-                    break;
-                case 2: // Enable confirmed messages (v)
-                    IsTxConfirmed = true;
-                    ComplianceTest.State = 1;
-                    break;
-                case 3:  // Disable confirmed messages (vi)
-                    IsTxConfirmed = false;
-                    ComplianceTest.State = 1;
-                    break;
-                case 4: // (vii)
-                    AppDataSize = mcpsIndication->BufferSize;
-                    AppData[0] = 4;
-                    for( uint8_t i = 1; i < AppDataSize; i++ )
-                    {
-                        AppData[i] = mcpsIndication->Buffer[i] + 1;
-                    }
-                    break;
-                case 5: // (viii)
-                    {
-                        MlmeReq_t mlmeReq;
-                        mlmeReq.Type = MLME_LINK_CHECK;
-                        LoRaMacMlmeRequest( &mlmeReq );
-                    }
-                    break;
-                case 6: // (ix)
-                    {
-                        MlmeReq_t mlmeReq;
-                        mlmeReq.Type = MLME_JOIN;
-                        mlmeReq.Req.Join.DevEui = DevEui;
-                        mlmeReq.Req.Join.AppEui = AppEui;
-                        mlmeReq.Req.Join.AppKey = AppKey;
-                        LoRaMacMlmeRequest( &mlmeReq );
-                        DeviceState = DEVICE_STATE_SLEEP;
-                    }
-                    break;
-                default:
-                    break;
-                }
-            }
-            break;
-        default:
-            break;
-        }
+
     }
     // Switch LED 2 ON for each received downlink
     //GpioWrite( &Led2, 0 );
@@ -615,41 +473,24 @@ static void MlmeConfirm( MlmeConfirm_t *mlmeConfirm )
 /*!
  * \brief   Prepare Ultrasonic range and temperature data for transmission
  */
-static void txSensorError(void) {
+static void txSensor(bool mode) {
     
-    //static MbedJSONValue jsonobj;
-    uint8_t volts = 32;
-    char buf[5];
-    sprintf(buf, "%.1f", (float) 99.9); // format float temperature value
-    pc.printf("range = %d centimeters, temperature = %.1f\r\n",999, buf);
-  //  jsonobj["rng"] = 999;
- //   jsonobj["tmp"] = buf;
- //   jsonobj["vlt"] = volts;
-  //  std::string strng = jsonobj.serialize();
-    // Prepare application data for transmission
- //   memcpy(AppData, strng.c_str(), strng.length());
-  //  AppDataSize = strng.length();
-}
-
-uint8_t int2bcd_2(uint8_t input)
-{
-    uint8_t high = 0;
-    
-    while (input >= 10)  {               // Count tens
-        high++;
-        input -= 10;
-    }
-    return  (high << 4) | input;        // Add ones and return answer
-}
-
-
-static void txSensor(void) {
-    
-    float temperature;
-    uint16_t range = sensor.getDistance(&temperature);
-    uint8_t volts = 33;
     #define PAYLOAD_SIZE 5
-    pc.printf("range = %d centimeters, temperature = %.1f\r\n",range, temperature);
+    int16_t temperature;
+    uint16_t range;
+    uint8_t volts;
+
+    if (mode == 0) { // normal no error
+        range = sensor.getDistance(&temperature);
+        volts = 33;
+    }
+    else { // error condition
+            temperature = 99;
+            range = 999;
+            volts = 32;
+    }
+    
+    pc.printf("range = %d centimeters, temperature = %d\r\n",range, temperature);
 
     /* Format payload data to packed binary coded decimal*/
     formatPayload(AppData, range, temperature, volts);
@@ -658,7 +499,6 @@ static void txSensor(void) {
     for (int i = 0; i<PAYLOAD_SIZE; i++)
         printf("%x",AppData[i]);
     printf("\r\n");
-   // memcpy(AppData, buf, PAYLOAD_SIZE);
     AppDataSize = PAYLOAD_SIZE;
 }
 
@@ -690,12 +530,12 @@ void LowPowerRestore(void) {
      // Digitalin
      GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
      GPIO_InitStruct.Pull = GPIO_PULLDOWN; // default mode
-     
+
 }
 
 void LowPowerConfiguration(void)
 {
-        // Enable GPIO clocks
+        // Enable All GPIO clocks to be able to initialise pins
         RCC->AHBENR |= (RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN | RCC_AHBENR_GPIOCEN |
                             RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOEEN | RCC_AHBENR_GPIOHEN);
                             
@@ -727,7 +567,7 @@ void LowPowerConfiguration(void)
                                    GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_14 | GPIO_PIN_15 );
          HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
     
-         // Disable GPIO clocks
+         // Disable GPIO clocks for unused ports
          // RCC->AHBENR &= ~(RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN |RCC_AHBENR_GPIOCEN |
          //           RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOHEN);
                     
@@ -744,7 +584,7 @@ void guardCallback(void) {
 
 int main( void )
 {
-    // LowPowerConfiguration();
+    LowPowerConfiguration();
     pc.baud(115200);
     // print banner
     pc.printf("\r\n============== DEBUG STARTED ==============\r\n");
@@ -890,12 +730,16 @@ int main( void )
                        // RCC->AHBENR &= ~(RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN |RCC_AHBENR_GPIOCEN |
                        // RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOHEN);
                         //wait(15); /** Must wait until the radio fully shuts down before sleeping */
-                        deepsleep(); // Deep sleep until wake up alarm from RTC    
+                        sensor.pinsOff(); // sensor pins minimum power
+                        Radio.IoDeInit();
+                        deepsleep(); // Deep sleep until wake up alarm from RTC  
                         // Enable required GPIO clocks
                          //DigitalInOut(PB_0, PIN_INPUT, PullDown, 0);
                         // DigitalInOut(PB_1, PIN_INPUT, PullDown, 0);
                        // RCC->AHBENR &= (RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN |RCC_AHBENR_GPIOCEN);                  
                         pc.printf("..Wake!\r\n");
+                        sensor.pinsOn(); // renable sensor pins
+                        Radio.IoReInit();
                         Radio.EnableRadioIRQs(); // Re-enable the radio IRQs
                         SensorState = TRIGGERED;
                         /* Trigger ultrasonic sensor and start failure timer */

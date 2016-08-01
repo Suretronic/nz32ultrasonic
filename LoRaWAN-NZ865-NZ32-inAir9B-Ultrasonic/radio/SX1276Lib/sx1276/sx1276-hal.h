@@ -68,11 +68,10 @@ public:
     virtual ~SX1276MB1xAS( ) { };
 
 protected:
-    /*!
+     /*!
      * @brief Initializes the radio I/Os pins interface
      */
     virtual void IoInit( void );
-
     /*!
      *  @brief Initializes the radio registers
      */
@@ -89,13 +88,6 @@ protected:
      * @param [IN] irqHandlers Array containing the IRQ callback functions
      */
     virtual void IoIrqInit( DioIrqHandler *irqHandlers );
-
-    /*!
-     * @brief De-initializes the radio I/Os pins interface. 
-     *
-     * \remark Useful when going in MCU lowpower modes
-     */
-    virtual void IoDeInit( void );
 
     /*!
      * @brief Gets the board PA selection configuration
@@ -134,6 +126,18 @@ protected:
     virtual void SetAntSw( uint8_t rxTx );
 
 public:
+        /*!
+     * @brief Re-initializes the radio I/Os pins interface. 
+     *
+     * \remark Useful when going in MCU lowpower modes
+     */
+    virtual void IoReInit( void );
+    /*!
+     * @brief De-initializes the radio I/Os pins interface. 
+     *
+     * \remark Useful when going in MCU lowpower modes
+     */
+    virtual void IoDeInit( void );
     /*!
      * @brief Detect the board connected by reading the value of the antenna switch pin
      */
