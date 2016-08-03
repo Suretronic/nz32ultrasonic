@@ -33,7 +33,7 @@ Serial pc(USBTX, USBRX);
 
 #define LORAWAN_DEFAULT_DATARATE                    DR_0
 
-#define LORAWAN_CONFIRMED_MSG_ON                    true
+#define LORAWAN_CONFIRMED_MSG_ON                    false
 
 /*!
  * LoRaWAN Adaptive Data Rate
@@ -475,19 +475,19 @@ static void MlmeConfirm( MlmeConfirm_t *mlmeConfirm )
  */
 static void txSensor(bool mode) {
     
-    #define PAYLOAD_SIZE 5
+    #define PAYLOAD_SIZE 6
     int16_t temperature;
     uint16_t range;
-    uint8_t volts;
+    uint16_t volts;
 
     if (mode == 0) { // normal no error
         range = sensor.getDistance(&temperature);
-        volts = 33;
+        volts = 334;
     }
     else { // error condition
             temperature = 99;
             range = 999;
-            volts = 32;
+            volts = 322;
     }
     
     pc.printf("range = %d centimeters, temperature = %d\r\n",range, temperature);
@@ -502,34 +502,28 @@ static void txSensor(bool mode) {
     AppDataSize = PAYLOAD_SIZE;
 }
 
+void LowPowerPrep(void) {
+    Radio.DisableRadioIRQs(); // Disable radio IRQs to prevent them from waking the MCU
+    Radio.Sleep();
+    //wait(15); /** Must wait until the radio fully shuts down before sleeping */DigitalIn USBTX(PB_10,PullDown);  //USB Serial off
+    DigitalIn USBRX(PB_11,PullDown);
+    sensor.pinsOff(); // sensor pins minimum power
+    Radio.IoDeInit(); // switch off radio pins
+     // Disable All GPIO clocks
+    RCC->AHBENR &= ~(RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN |RCC_AHBENR_GPIOCEN |
+    RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOHEN);
+}
+
 void LowPowerRestore(void) {
 
-    GPIO_InitTypeDef GPIO_InitStruct;
-    
-    // Mode input, pulldown, medium speed
-     GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-     GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-     GPIO_InitStruct.Speed = GPIO_SPEED_MEDIUM; 
-        
-     GPIO_InitStruct.Pin = (GPIO_PIN_10); // PA10 dio3
-     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-     
-     DigitalInOut(PA_10, PIN_INPUT, PullDown, 0);
-
-     GPIO_InitStruct.Pin = (GPIO_PIN_0 | GPIO_PIN_1); // PB0 dio0, PB1 dio1
-     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-     
-     DigitalInOut(PB_0, PIN_INPUT, PullDown, 0);
-     DigitalInOut(PB_1, PIN_INPUT, PullDown, 0);
-     
-     GPIO_InitStruct.Pin = (GPIO_PIN_6); // PC6 dio2
-     HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-     
-     DigitalInOut(PC_6, PIN_INPUT, PullDown, 0);
-     
-     // Digitalin
-     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-     GPIO_InitStruct.Pull = GPIO_PULLDOWN; // default mode
+// Enable required GPIO clocks - Ports A, B and C
+RCC->AHBENR &= (RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN |RCC_AHBENR_GPIOCEN);
+Serial(PB_10, PB_11,"pc"); // renable USB serial
+pc.baud(115200);
+pc.printf("..Wake!\r\n");
+sensor.pinsOn(); // renable sensor pins
+Radio.IoReInit(); // renable radio pins
+Radio.EnableRadioIRQs(); // Re-enable the radio IRQs
 
 }
 
@@ -554,7 +548,7 @@ void LowPowerConfiguration(void)
        
          /* Set unused Port A pins to analogue input, low speed, no pull */
          GPIO_InitStruct.Pin = (GPIO_PIN_0 | GPIO_PIN_2 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7 | GPIO_PIN_8 |
-                                   GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15 );
+                                   GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_14 | GPIO_PIN_15 );
          HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
          
          /* Set unused Port B pins to analogue input, low speed, no pull */
@@ -644,6 +638,7 @@ int main( void )
                   pc.printf("DEVICE_STATE_JOIN\r\n");
 
 #if( OVER_THE_AIR_ACTIVATION != 0 )
+                pc.printf("OTA\r\n");
                 MlmeReq_t mlmeReq;
 
                 // Initialize LoRaMac device unique ID
@@ -664,11 +659,12 @@ int main( void )
 
                 DeviceState = DEVICE_STATE_CYCLE;
 #else
+                pc.printf("ABP\r\n");
                 // Choose a random device address if not already defined in Comissioning.h
                 if( DevAddr == 0 )
                 {
                     // Random seed initialization
-                    srand1( BoardGetRandomSeed( ) );
+                   // srand1( BoardGetRandomSeed( ) );
                     // Choose a random device address
                     DevAddr = randr( 0, 0x01FFFFFF );
                 }
@@ -724,25 +720,11 @@ int main( void )
                     if (GetMacStatus() == 0) { // Ensure MAC state and Valve power are idle before sleeping
                         pc.printf("DeepSleep ..zzz.\r\n");
                         WakeUp::set(DEEPSLEEP_SECONDS); // Set RTC alarm to wake up from deep sleep
-                        Radio.DisableRadioIRQs(); // Disable radio IRQs to prevent them from waking the MCU
-                        Radio.Sleep();
-                        // Disable GPIO clocks
-                       // RCC->AHBENR &= ~(RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN |RCC_AHBENR_GPIOCEN |
-                       // RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOHEN);
-                        //wait(15); /** Must wait until the radio fully shuts down before sleeping */
-                        sensor.pinsOff(); // sensor pins minimum power
-                        Radio.IoDeInit();
+                        LowPowerPrep();
                         deepsleep(); // Deep sleep until wake up alarm from RTC  
-                        // Enable required GPIO clocks
-                         //DigitalInOut(PB_0, PIN_INPUT, PullDown, 0);
-                        // DigitalInOut(PB_1, PIN_INPUT, PullDown, 0);
-                       // RCC->AHBENR &= (RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN |RCC_AHBENR_GPIOCEN);                  
-                        pc.printf("..Wake!\r\n");
-                        sensor.pinsOn(); // renable sensor pins
-                        Radio.IoReInit();
-                        Radio.EnableRadioIRQs(); // Re-enable the radio IRQs
+                        LowPowerRestore();
                         SensorState = TRIGGERED;
-                        /* Trigger ultrasonic sensor and start failure timer */
+                        /* Trigger ultrasonic sensor and start sensor read failure timer */
                         sensor.triggerSample(); // Get Ultrasonic reading
                         TimerSetValue( &ultrasonicTimer, 3000000 ); // 3s timeout
                         TimerStart( &ultrasonicTimer );

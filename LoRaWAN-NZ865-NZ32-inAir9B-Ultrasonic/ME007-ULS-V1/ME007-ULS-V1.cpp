@@ -40,8 +40,17 @@ uint16_t UltraSonic::getDistance(int16_t *temp) {
             }
      }
     distanceAvailable = false;   // reset
+
+    // Check range and temperature are valid
+    // if not return error indicator
+    if ((temperature < -998) || (temperature > 998))
+      temperature = (int16_t) 999; // Error
     *temp = temperature; 
-    return SampleBuf[index].value/10;
+    int16_t range = SampleBuf[index].value/10;
+    if ((range < 20 ) || (range > 400))
+      return (uint16_t ) 999; // Error
+    else
+      return (uint16_t) range; 
 }
 
 /**

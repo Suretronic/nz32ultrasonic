@@ -70,9 +70,9 @@ static void revcopy (uint8_t *outbuf, uint8_t outbufpos, TYPE val ) {
     }
   }
 
-  void formatPayload(uint8_t *outbuf, uint16_t range, int16_t temperature, uint8_t volts ) {
+  void formatPayload(uint8_t *outbuf, uint16_t range, int16_t temperature, uint16_t volts ) {
     revcopy(outbuf, 0, uint2bcd3(range));
     revcopy(outbuf, 2, int2bcd3(temperature));
-    revcopy(outbuf, 4, uint2bcd2(volts));
+    revcopy(outbuf, 4, uint2bcd3(volts));
 }
 

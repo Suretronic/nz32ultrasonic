@@ -79,6 +79,11 @@ protected:
     //InterruptIn dio4;
     //DigitalIn dio5;
 
+    /*!
+    * inAir9b antenna on/off voltage switch
+    */
+    DigitalOut vswitch;
+
     bool isRadioActive;
 
     uint8_t boardConnected; //1 = SX1276MB1LAS; 0 = SX1276MB1MAS
@@ -107,6 +112,7 @@ protected:
     RadioSettings_t settings;
 
     static const FskBandwidth_t FskBandwidths[] ;
+
 protected:
 
     /*!
@@ -119,7 +125,7 @@ protected:
 public:
     SX1276( RadioEvents_t *events,
             PinName mosi, PinName miso, PinName sclk, PinName nss, PinName reset,
-            PinName dio0, PinName dio1, PinName dio2, PinName dio3 /*, PinName dio4, PinName dio5 */ ); 
+            PinName dio0, PinName dio1, PinName dio2, PinName dio3 /*, PinName dio4, PinName dio5 */, PinName vswitch ); 
     SX1276( RadioEvents_t *events );
     virtual ~SX1276( );
     

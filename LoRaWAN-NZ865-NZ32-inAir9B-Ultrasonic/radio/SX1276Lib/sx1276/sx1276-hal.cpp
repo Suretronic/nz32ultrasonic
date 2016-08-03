@@ -18,10 +18,10 @@ const RadioRegisters_t SX1276MB1xAS::RadioRegsInit[] = RADIO_INIT_REGISTERS_VALU
 
 SX1276MB1xAS::SX1276MB1xAS( RadioEvents_t *events,
                             PinName mosi, PinName miso, PinName sclk, PinName nss, PinName reset,
-                            PinName dio0, PinName dio1, PinName dio2, PinName dio3, /* PinName dio4, PinName dio5, */
+                            PinName dio0, PinName dio1, PinName dio2, PinName dio3, /* PinName dio4, PinName dio5, */ PinName vswitch,
                             PinName antSwitch )
-                            : SX1276( events, mosi, miso, sclk, nss, reset, dio0, dio1, dio2, dio3 /*, dio4, dio5 */),
-                            antSwitch( antSwitch ),
+                            : SX1276( events, mosi, miso, sclk, nss, reset, dio0, dio1, dio2, dio3 /*, dio4, dio5 */,vswitch),
+                            antSwitch( NC ),
                           //  antSwitch( NC ),
                       //  #if( defined ( TARGET_NUCLEO_L152RE ) )
                       //      fake( D8 )
@@ -52,11 +52,11 @@ SX1276MB1xAS::SX1276MB1xAS( RadioEvents_t *events,
 SX1276MB1xAS::SX1276MB1xAS( RadioEvents_t *events )
                         //#if defined ( TARGET_NUCLEO_L152RE )
                         //:   SX1276( events, D11 /*MOSI*/, D12 /*MISO*/, D13 /*SCLK*/, D10 /*CS*/, A0 /*RST*/, D2 /*DIO0*/, D3 /*DIO1*/, D4 /*DIO2*/, D5 /*DIO3*//*, A3, D9 */), // For NUCLEO L152RE dio4 is on port A3
-                        :   SX1276( events, PB_5 /*MOSI*/, PB_4 /*MISO*/, PB_3 /*SCLK*/, PC_8 /*CS*/, PA_9 /*RST*/, PB_0 /*DIO0*/, PB_1 /*DIO1*/, PC_6 /*DIO2*/, PA_10 /*DIO3*//*, A3, D9 */), // For NUCLEO L152RE dio4 is on port A3
+                        :   SX1276( events, PB_5 /*MOSI*/, PB_4 /*MISO*/, PB_3 /*SCLK*/, PC_8 /*CS*/, PA_9 /*RST*/, PB_0 /*DIO0*/, PB_1 /*DIO1*/, PC_6 /*DIO2*/, PA_10 /*DIO3*//*, A3, D9 */ /*vswitch for inAir9b*/, PA_13), // For NUCLEO L152RE dio4 is on port A3
                         /*  antSwitch( A4 ),
                             fake( D8 )
                         */
-                            antSwitch( PC_13 ), // to Vswitch on inAir9b
+                            antSwitch( antSwitch ), // automatic on inAir9b
                             fake( NC )
                         //#elif defined( TARGET_LPC11U6X )
                         //:   SX1276( events, D11, D12, D13, D10, A0, D2, D3, D4, D5, D8, D9 ),
@@ -122,6 +122,7 @@ void SX1276MB1xAS::IoInit( void )
 {
     AntSwInit( );
     SpiInit( );
+    vswitch = 0; // voltage to antenna on inAir9b
 }
 
 void SX1276MB1xAS::RadioRegistersInit( )
@@ -168,13 +169,13 @@ void SX1276MB1xAS::IoIrqInit( DioIrqHandler *irqHandlers )
 void SX1276MB1xAS::IoReInit( void )
 {
     DigitalOut nss(PC_8);
+    DigitalOut vswitch(PC_13, 0);
     SPI spi(PB_5,PB_4,PB_3); //mosi, miso, sclk
     IoInit();
 }
 
 void SX1276MB1xAS::IoDeInit( void )
 {
-    //nothing
     DigitalIn nss(PC_8);
     nss.mode(PullDown);
     DigitalIn mosi(PB_5);
@@ -183,6 +184,8 @@ void SX1276MB1xAS::IoDeInit( void )
     miso.mode(PullDown);
     DigitalIn sclk(PB_3);
     sclk.mode(PullDown);
+    DigitalIn vSwitch(PC_13); // voltage to antenna on inAir9b
+    vSwitch.mode(PullDown);
 }
 
 uint8_t SX1276MB1xAS::GetPaSelect( uint32_t channel )

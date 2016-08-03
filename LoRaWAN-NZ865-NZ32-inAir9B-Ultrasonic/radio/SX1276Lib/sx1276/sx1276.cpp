@@ -37,18 +37,19 @@ const FskBandwidth_t SX1276::FskBandwidths[] =
     { 166700, 0x11 },
     { 200000, 0x09 },
     { 250000, 0x01 },
-    { 300000, 0x00 }, // Invalid Badwidth
+    { 300000, 0x00 }, // Invalid Bandwidth
 };
 
 
 SX1276::SX1276( RadioEvents_t *events,
                 PinName mosi, PinName miso, PinName sclk, PinName nss, PinName reset,
-                PinName dio0, PinName dio1, PinName dio2, PinName dio3/*, PinName dio4, PinName dio5 */)
+                PinName dio0, PinName dio1, PinName dio2, PinName dio3/*, PinName dio4, PinName dio5 */, PinName vswitch)
             :   Radio( events ),
                 spi( mosi, miso, sclk ),
                 nss( nss ),
+                vswitch(vswitch),
                 reset( reset ),
-                dio0( dio0 ), dio1( dio1 ), dio2( dio2 ), dio3( dio3 ), /* dio4( dio4 ), dio5( dio5 ), */
+                dio0( dio0 ), dio1( dio1 ), dio2( dio2 ), dio3( dio3 ), /* dio4( dio4 ), dio5( dio5 ),*/
                 isRadioActive( false )
 {
     wait_ms( 10 );
@@ -777,6 +778,8 @@ void SX1276::Standby( void )
 void SX1276::Rx( uint32_t timeout )
 {
     bool rxContinuous = false;
+
+   this->vswitch = 1; // switch on voltage to antenna on inAir9b
     
     switch( this->settings.Modem )
     {
@@ -943,6 +946,7 @@ void SX1276::Rx( uint32_t timeout )
 
 void SX1276::Tx( uint32_t timeout )
 {
+   this->vswitch = 1; // switch on voltage to antenna on inAir9b
 
     switch( this->settings.Modem )
     {
@@ -1183,7 +1187,10 @@ void SX1276::OnTimeoutIrq( void )
 void SX1276::OnDio0Irq( void )
 {
     volatile uint8_t irqFlags = 0;
-
+    /*!
+    *   Either Tx or Rx is finished
+    */
+   this->vswitch = 0; // switch off voltage to antenna on inAir9b
     switch( this->settings.State )
     {
         case RF_RX_RUNNING:
@@ -1365,7 +1372,7 @@ void SX1276::OnDio0Irq( void )
                 break;
             }
             break;
-        case RF_TX_RUNNING:
+        case RF_TX_RUNNING: // finished transmitting
             txTimeoutTimer.detach( );
             // TxDone interrupt
             switch( this->settings.Modem )

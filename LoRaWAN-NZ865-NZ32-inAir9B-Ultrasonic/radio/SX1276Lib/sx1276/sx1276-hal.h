@@ -60,7 +60,7 @@ private:
 public:
     SX1276MB1xAS( RadioEvents_t *events,
             PinName mosi, PinName miso, PinName sclk, PinName nss, PinName reset,
-            PinName dio0, PinName dio1, PinName dio2, PinName dio3, /*PinName dio4, PinName dio5,*/
+            PinName dio0, PinName dio1, PinName dio2, PinName dio3, /*PinName dio4, PinName dio5,*/ PinName vswitch,   
             PinName antSwitch ); 
 
     SX1276MB1xAS( RadioEvents_t *events );
