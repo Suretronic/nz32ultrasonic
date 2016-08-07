@@ -126,7 +126,7 @@ protected:
     virtual void SetAntSw( uint8_t rxTx );
 
 public:
-        /*!
+     /*!
      * @brief Re-initializes the radio I/Os pins interface. 
      *
      * \remark Useful when going in MCU lowpower modes

@@ -11,7 +11,7 @@
     sampleBufIndex = 0;
     distanceAvailable = false;    
     state = READ_HEADER;
-    temperature = 99; // Initialise to indicate error condition
+    temperature = 999; // Initialise to indicate error condition
 }
 
 /**
@@ -63,14 +63,12 @@ void UltraSonic::triggerSample(void) {
     _trigger=1; // back to standby mode  
 } 
 
-  void UltraSonic::pinsOff(void) {
-         DigitalIn _trigger(PA_1);
-         _trigger.mode(PullUp); // ensure sensor remains in standby mode
-         _receive.mode(PullDown);
-    };
-
   void UltraSonic::pinsOn(void) {
-         DigitalOut _trigger(PA_1, 1);
+         _trigger = DigitalOut (PA_1, 1);  // sensor in stanby mode
+        // _usonic = Serial (NC, PA_3); // renable USB serial
+       //  _usonic.baud(9600);
+       //_receive = DigitalIn (PA_3);
+       // _usonic.attach(this, &UltraSonic::RxInterrupt);
     };
 
 /** Interupt Routine to read in data from serial port

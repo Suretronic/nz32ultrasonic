@@ -764,6 +764,7 @@ void SX1276::Sleep( void )
 
     SetOpMode( RF_OPMODE_SLEEP );
     this->settings.State = RF_IDLE;
+    vswitch = 0; // Ensure inAir9b antenna switch is off
 }
 
 void SX1276::Standby( void )
@@ -1086,6 +1087,7 @@ void SX1276::SetOpMode( uint8_t opMode )
     }
     Write( REG_OPMODE, ( Read( REG_OPMODE ) & RF_OPMODE_MASK ) | opMode );
 }
+
 
 void SX1276::SetModem( RadioModems_t modem )
 {

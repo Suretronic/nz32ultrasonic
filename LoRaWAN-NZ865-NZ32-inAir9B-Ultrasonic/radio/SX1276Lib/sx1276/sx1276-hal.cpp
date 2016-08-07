@@ -168,24 +168,17 @@ void SX1276MB1xAS::IoIrqInit( DioIrqHandler *irqHandlers )
 
 void SX1276MB1xAS::IoReInit( void )
 {
-    DigitalOut nss(PC_8);
-    DigitalOut vswitch(PC_13, 0);
-    SPI spi(PB_5,PB_4,PB_3); //mosi, miso, sclk
+    //DigitalOut nss(PC_8,1);
+    nss = DigitalOut (PC_8,1);
+    vswitch = DigitalOut (PC_13, 0);
+    reset = DigitalOut (PA_0, 0);
+    spi = SPI(PB_5,PB_4,PB_3); //mosi, miso, sclk - re-initialise global object
     IoInit();
 }
 
 void SX1276MB1xAS::IoDeInit( void )
 {
-    DigitalIn nss(PC_8);
-    nss.mode(PullDown);
-    DigitalIn mosi(PB_5);
-    mosi.mode(PullDown);
-    DigitalIn miso(PB_4);
-    miso.mode(PullDown);
-    DigitalIn sclk(PB_3);
-    sclk.mode(PullDown);
-    DigitalIn vSwitch(PC_13); // voltage to antenna on inAir9b
-    vSwitch.mode(PullDown);
+ 
 }
 
 uint8_t SX1276MB1xAS::GetPaSelect( uint32_t channel )

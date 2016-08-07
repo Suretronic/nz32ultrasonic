@@ -48,17 +48,19 @@ void sleep(void)
     __HAL_TIM_ENABLE_IT(&TimMasterHandle, TIM_IT_CC2);
 }
 
+#define TARGET_MOTE_L152RC 1
+
 void deepsleep(void)
 {
-//#if defined(TARGET_MOTE_L152RC)
+#if defined(TARGET_MOTE_L152RC)
     int8_t STOPEntry = PWR_STOPENTRY_WFI;
-//#endif
+#endif
 
     // Disable HAL tick interrupt
     TimMasterHandle.Instance = TIM5;
     __HAL_TIM_DISABLE_IT(&TimMasterHandle, TIM_IT_CC2);
 
-//#if defined(TARGET_MOTE_L152RC)
+#if defined(TARGET_MOTE_L152RC)
     /* Select the regulator state in Stop mode: Set PDDS and LPSDSR bit according to PWR_Regulator value */
     MODIFY_REG(PWR->CR, (PWR_CR_PDDS | PWR_CR_LPSDSR), PWR_LOWPOWERREGULATOR_ON);
 
@@ -83,10 +85,10 @@ void deepsleep(void)
     __NOP();
     /* Reset SLEEPDEEP bit of Cortex System Control Register */
     CLEAR_BIT(SCB->SCR, ((uint32_t)SCB_SCR_SLEEPDEEP_Msk));
-//#else
+#else
     // Request to enter STOP mode with regulator in low power mode
-//    HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON, PWR_STOPENTRY_WFI);
-//#endif
+    HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON, PWR_STOPENTRY_WFI);
+#endif
 
     // After wake-up from STOP reconfigure the PLL
     SetSysClock();

@@ -32,6 +32,7 @@ protected:
      enum states {READ_HEADER, READ_DATA} state; /** Data frame read states   */
      
 public:
+
     /**
     * UltraSonic constructor
     * @param trigger pin - triggers an ultrasonic reading
@@ -54,12 +55,8 @@ public:
     */
     void triggerSample(void);
 
-    /**
-    * Set pins to off
-    */
-    void pinsOff(void);
 
-        /**
+    /**
     * Set pins to on
     */
     void pinsOn(void);

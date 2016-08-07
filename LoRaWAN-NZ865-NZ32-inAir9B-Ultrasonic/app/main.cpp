@@ -113,7 +113,7 @@ static TimerEvent_t TxNextPacketTimer;
 *   Sensor Support
 */
 
-#define DEEPSLEEP_SECONDS   20
+#define DEEPSLEEP_SECONDS   30
 
 UltraSonic sensor (PA_1, PA_3); // Trigger, Receive
 
@@ -312,16 +312,6 @@ static void OnUltrasonicTimeout ( void ) {
 }
 
 /*!
- * \brief Function executed on Led 1 Timeout event
- */
-static void OnLed1TimerEvent( void )
-{
-    TimerStop( &Led1Timer );
-    // Switch LED 1 OFF
-    // Led1State = false;
-}
-
-/*!
  * \brief   MCPS-Confirm event function
  *
  * \param   [IN] mcpsConfirm - Pointer to the confirm structure,
@@ -356,7 +346,6 @@ static void McpsConfirm( McpsConfirm_t *mcpsConfirm )
         }
         // Switch LED 1 ON
        // GpioWrite( &Led1, 0 );
-        TimerStart( &Led1Timer );
     }
     NextTx = true;
 }
@@ -485,7 +474,7 @@ static void txSensor(bool mode) {
         volts = 334;
     }
     else { // error condition
-            temperature = 99;
+            temperature = 999;
             range = 999;
             volts = 322;
     }
@@ -502,36 +491,81 @@ static void txSensor(bool mode) {
     AppDataSize = PAYLOAD_SIZE;
 }
 
+void LowPowerPins(void)
+{
+        // Enable All GPIO clocks to be able to initialise pins
+        RCC->AHBENR |= (RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN | RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOEEN | RCC_AHBENR_GPIOHEN);
+                            
+         GPIO_InitTypeDef GPIO_InitStruct;
+         // All other ports are analog input mode
+         GPIO_InitStruct.Pin = GPIO_PIN_All;
+         GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+         GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+         GPIO_InitStruct.Speed = GPIO_SPEED_LOW;
+         //HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+         //HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+         //HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+         HAL_GPIO_Init(GPIOD, &GPIO_InitStruct); 
+         HAL_GPIO_Init(GPIOE, &GPIO_InitStruct); 
+         HAL_GPIO_Init(GPIOH, &GPIO_InitStruct); 
+
+         /* Set unused Port A pins to analogue input, low speed, pull down */
+         /* PA_1 - trigger, PA_3 - receive, PA_9 - reset, PA_10 - dio3 */
+         GPIO_InitStruct.Pin = (GPIO_PIN_0 | /* GPIO_PIN_1 | */  GPIO_PIN_2 | /* GPIO_PIN_3 | */ GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7 | GPIO_PIN_8 | /* GPIO_PIN_9 |  GPIO_PIN_10 | */
+                                   GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15 );
+         HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+         DigitalIn(PA_1, PullUp); // ultrasonic trigger
+         DigitalIn(PA_9, PullUp); // Radio reset
+
+         /* Set unused Port B pins to analogue input, low speed, pull down */
+         /* PB_0 - dio0, PB_1 - dio1, PB_3 - sclk, PB_4 - miso, PB_5 - mosi, PB_10 - USBTX, PB_11 - USBRX */
+         GPIO_InitStruct.Pin = (/*GPIO_PIN_0 | GPIO_PIN_1 | */GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7 | GPIO_PIN_8 |GPIO_PIN_9 | GPIO_PIN_10 |
+                                   GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15 );
+         HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+         /* Set unused Port C pins to analogue input, low speed, pull down */
+         /* PC_6 - dio2, PC_8 - nss, PC_13 - vswitch */
+         GPIO_InitStruct.Pin = (GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 | /* GPIO_PIN_6 | */ GPIO_PIN_7 | /* GPIO_PIN_8 | */ GPIO_PIN_9 | GPIO_PIN_10 |
+                                   GPIO_PIN_11 | GPIO_PIN_12 |  GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15 );
+         HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+         DigitalIn(PC_8, PullUp); // radio spi nss
+   
+         // Disable GPIO clocks for all ports
+         RCC->AHBENR &= ~(RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN |RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOEEN | RCC_AHBENR_GPIOHEN);
+
+}
+
 void LowPowerPrep(void) {
     Radio.DisableRadioIRQs(); // Disable radio IRQs to prevent them from waking the MCU
     Radio.Sleep();
-    //wait(15); /** Must wait until the radio fully shuts down before sleeping */DigitalIn USBTX(PB_10,PullDown);  //USB Serial off
-    DigitalIn USBRX(PB_11,PullDown);
-    sensor.pinsOff(); // sensor pins minimum power
-    Radio.IoDeInit(); // switch off radio pins
-     // Disable All GPIO clocks
-    RCC->AHBENR &= ~(RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN |RCC_AHBENR_GPIOCEN |
-    RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOHEN);
+    DigitalIn(PA_9, PullUp); // Radio reset
+    // Disable GPIO clocks for all ports
+    RCC->AHBENR &= ~(RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN |RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOEEN | RCC_AHBENR_GPIOHEN);
+   // LowPowerPins();
 }
 
 void LowPowerRestore(void) {
 
 // Enable required GPIO clocks - Ports A, B and C
-RCC->AHBENR &= (RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN |RCC_AHBENR_GPIOCEN);
-Serial(PB_10, PB_11,"pc"); // renable USB serial
+RCC->AHBENR |= (RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN | RCC_AHBENR_GPIOCEN);
+Serial(PB_10, PB_11,"pc"); // re-enable USB serial
 pc.baud(115200);
 pc.printf("..Wake!\r\n");
-sensor.pinsOn(); // renable sensor pins
-Radio.IoReInit(); // renable radio pins
+sensor.pinsOn(); // re-enable sensor pins
+Radio.IoReInit(); // re-enable radio pins
+Radio.Standby();
 Radio.EnableRadioIRQs(); // Re-enable the radio IRQs
 
 }
 
+
+
 void LowPowerConfiguration(void)
 {
         // Enable All GPIO clocks to be able to initialise pins
-        RCC->AHBENR |= (RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN | RCC_AHBENR_GPIOCEN |
-                            RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOEEN | RCC_AHBENR_GPIOHEN);
+        RCC->AHBENR |= (RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN | RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOEEN | RCC_AHBENR_GPIOHEN);
                             
          GPIO_InitTypeDef GPIO_InitStruct;
          // All other ports are analog input mode
@@ -547,37 +581,39 @@ void LowPowerConfiguration(void)
          HAL_GPIO_Init(GPIOH, &GPIO_InitStruct); // Not used
        
          /* Set unused Port A pins to analogue input, low speed, no pull */
-         GPIO_InitStruct.Pin = (GPIO_PIN_0 | GPIO_PIN_2 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7 | GPIO_PIN_8 |
-                                   GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_14 | GPIO_PIN_15 );
+         /* PA_1 - trigger, PA_3 - receive, PA_9 - reset, PA_10 - dio3 */
+         GPIO_InitStruct.Pin = (GPIO_PIN_0 | /* GPIO_PIN_1 | */ GPIO_PIN_2 | /* GPIO_PIN_3 | */ GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7 | GPIO_PIN_8 |
+                                    /* GPIO_PIN_9 | GPIO_PIN_10 | */ GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15 );
          HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
          
          /* Set unused Port B pins to analogue input, low speed, no pull */
-         GPIO_InitStruct.Pin = (GPIO_PIN_6 | GPIO_PIN_7 | GPIO_PIN_8 | GPIO_PIN_9 | 
-                                    GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15 );
+         /* PB_0 - dio0, PB_1 - dio1, PB_3 - sclk, PB_4 - miso, PB_5 - mosi, PB_10 - USBTX, PB_11 - USBRX */
+         GPIO_InitStruct.Pin = (/*GPIO_PIN_0 | GPIO_PIN_1 | */GPIO_PIN_2 | /* GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 | */ GPIO_PIN_6 | GPIO_PIN_7 | GPIO_PIN_8 |GPIO_PIN_9 | /* GPIO_PIN_10 |
+                                   GPIO_PIN_11 | */ GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15 );
          HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
          
          /* Set unused Port C pins to analogue input, low speed, no pull */
-         GPIO_InitStruct.Pin = (GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_7 | GPIO_PIN_9 |
-                                   GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_14 | GPIO_PIN_15 );
+          /* PC_6 - dio2, PC_8 - nss, PC_13 - vswitch */
+         GPIO_InitStruct.Pin = (GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 | /* GPIO_PIN_6 | */ GPIO_PIN_7 | /* GPIO_PIN_8 | */ GPIO_PIN_9 |
+                                   GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12 | /* GPIO_PIN_13 | */ GPIO_PIN_14 | GPIO_PIN_15 );
          HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
     
          // Disable GPIO clocks for unused ports
-         // RCC->AHBENR &= ~(RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN |RCC_AHBENR_GPIOCEN |
-         //           RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOHEN);
+         // RCC->AHBENR &= ~(RCC_AHBENR_GPIOAEN | RCC_AHBENR_GPIOBEN |RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOHEN);
                     
-         RCC->AHBENR &= ~(RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOEEN | RCC_AHBENR_GPIOHEN);
+         RCC->AHBENR &= ~(RCC_AHBENR_GPIODEN | RCC_AHBENR_GPIOEEN |  RCC_AHBENR_GPIOHEN);
 }
 
-Timeout secondTimeout;
-bool expired = false;
- 
-void guardCallback(void) {
-    expired = true;
+
+TimerEvent_t mainLoopTimeout;
+
+void onMainLoopTimeoutEvent(void) {
+    DeviceState = DEVICE_STATE_INIT;
 }
- 
 
 int main( void )
 {
+    HAL_EnableDBGStopMode();
     LowPowerConfiguration();
     pc.baud(115200);
     // print banner
@@ -596,11 +632,18 @@ int main( void )
     //BoardInitPeriph( );
     BoardInit( );
 
+    TimerInit( &mainLoopTimeout, onMainLoopTimeoutEvent );
+    
+
     DeviceState = DEVICE_STATE_INIT;
 
     while( 1 )
     {
-        wait(0.5);
+       wait(0.5);
+        // This is a kind of watchdog on the main loop, if the timer isn't cancelled in x seconds then loop will enter INIT state
+       TimerSetValue( &mainLoopTimeout, 3000000 );
+       TimerStart( &mainLoopTimeout );
+
 
         switch( DeviceState )
         {
@@ -616,9 +659,6 @@ int main( void )
 
                 TimerInit( &TxNextPacketTimer, OnTxNextPacketTimerEvent );
                 TimerInit( &ultrasonicTimer, OnUltrasonicTimeout );
-
-                TimerInit( &Led1Timer, OnLed1TimerEvent );
-                TimerSetValue( &Led1Timer, 50000 );
 
                 mibReq.Type = MIB_ADR;
                 mibReq.Param.AdrEnable = LORAWAN_ADR_ON;
@@ -709,26 +749,27 @@ int main( void )
           
                  pc.printf("SensorState = %d, distanceAvailable = ",SensorState);
                 if (sensor.distanceAvailable)
-                      pc.printf("true\r\n");
+                   pc.printf("true\r\n");
                 else
                       pc.printf("false\r\n");
 
                 pc.printf("LoRaMacState = %d\r\n",GetMacStatus());      
                       
                 if ((SensorState == SENT) || (SensorState == INIT)) { /** Range and Temperature readings have been sent so we can sleep */
-                    TimerStop( &TxNextPacketTimer ); 
-                    if (GetMacStatus() == 0) { // Ensure MAC state and Valve power are idle before sleeping
+                    TimerStop( &TxNextPacketTimer );
+                    // Wait for MAC state to become idle before deep sleeping
+                    if (GetMacStatus() == 0) { // Ensure MAC state is idle before sleeping
                         pc.printf("DeepSleep ..zzz.\r\n");
+                        TimerStop(&mainLoopTimeout); // cancel main loop guard timeout
                         WakeUp::set(DEEPSLEEP_SECONDS); // Set RTC alarm to wake up from deep sleep
                         LowPowerPrep();
-                        deepsleep(); // Deep sleep until wake up alarm from RTC  
+                        deepsleep(); // Deep sleep until wake up alarm from RTC 
                         LowPowerRestore();
                         SensorState = TRIGGERED;
                         /* Trigger ultrasonic sensor and start sensor read failure timer */
                         sensor.triggerSample(); // Get Ultrasonic reading
-                        TimerSetValue( &ultrasonicTimer, 3000000 ); // 3s timeout
+                        TimerSetValue( &ultrasonicTimer, 2000000 ); // 2s timeout
                         TimerStart( &ultrasonicTimer );
-                        
                         DeviceState = DEVICE_STATE_SLEEP; // Cycle in sleep until sensor readings ready
                     }
                     else { // Cycle around until MAC state is idle
@@ -750,17 +791,12 @@ int main( void )
             {
                  pc.printf("DEVICE_STATE_SLEEP\r\n");
 
-                // Sleep until sensor ready
-                
-                secondTimeout.attach(guardCallback, 3.0f); // 3 second guard on the while loop to ensure that it doesn't get stuck
-                while(((SensorState != TRIGGERED) || (sensor.distanceAvailable == false)) && (SensorState != FAULT) && (!expired)) sleep();
-                
-                /** Send range and temperature as soon as they are available */
+                // Loop until sensor ready
                 if ((SensorState == TRIGGERED) && (sensor.distanceAvailable)) {
                     pc.printf("Xmit Reading..!\r\n");
                     TimerStop( &ultrasonicTimer ); // stop the sensor failure timer
                     SensorState = SENDING;
-                    TimerSetValue( &TxNextPacketTimer, 100 ); // Schedule immediate transmission
+                    TimerSetValue( &TxNextPacketTimer, 10 ); // Schedule immediate transmission
                     TimerStart( &TxNextPacketTimer );
                 }
         
